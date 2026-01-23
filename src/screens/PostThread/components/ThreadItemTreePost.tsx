@@ -1,5 +1,5 @@
 import {memo, useCallback, useMemo, useState} from 'react'
-import {View} from 'react-native'
+import {Pressable, View} from 'react-native'
 import {
   type AppBskyFeedDefs,
   type AppBskyFeedThreadgate,
@@ -7,11 +7,13 @@ import {
   RichText as RichTextAPI,
 } from '@atproto/api'
 import {Trans} from '@lingui/macro'
+import {FontAwesomeIcon} from '@fortawesome/react-native-fontawesome'
 
 import {MAX_POST_LINES} from '#/lib/constants'
 import {useOpenComposer} from '#/lib/hooks/useOpenComposer'
 import {makeProfileLink} from '#/lib/routes/links'
 import {countLines} from '#/lib/strings/helpers'
+import {isWeb} from '#/platform/detection'
 import {
   POST_TOMBSTONE,
   type Shadow,
@@ -47,6 +49,54 @@ import {Text} from '#/components/Typography'
  * Mimic the space in PostMeta
  */
 const TREE_AVI_PLUS_SPACE = TREE_AVI_WIDTH + a.gap_xs.gap
+
+/**
+ * CollapseButton - Shows a chevron icon to toggle child post visibility (web only)
+ */
+function CollapseButton({
+  isCollapsed,
+  onPress,
+}: {
+  isCollapsed: boolean
+  onPress: () => void
+}) {
+  const t = useTheme()
+  const {
+    state: hover,
+    onIn: onHoverIn,
+    onOut: onHoverOut,
+  } = useInteractionState()
+
+  if (!isWeb) return null
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onPointerEnter={onHoverIn}
+      onPointerLeave={onHoverOut}
+      accessibilityRole="button"
+      accessibilityLabel={isCollapsed ? 'Show replies' : 'Hide replies'}
+      style={[
+        a.absolute,
+        a.rounded_sm,
+        {
+          top: OUTER_SPACE / 2,
+          right: OUTER_SPACE / 2,
+          padding: 6,
+          backgroundColor: hover
+            ? t.palette.contrast_50
+            : t.palette.contrast_25,
+          zIndex: 10,
+        },
+      ]}>
+      <FontAwesomeIcon
+        icon={isCollapsed ? 'chevron-right' : 'chevron-down'}
+        size={12}
+        color={t.palette.contrast_600}
+      />
+    </Pressable>
+  )
+}
 
 export function ThreadItemTreePost({
   item,
@@ -266,6 +316,7 @@ const ThreadItemTreePostInner = memo(function ThreadItemTreePostInner({
   const [limitLines, setLimitLines] = useState(
     () => countLines(richText?.text) >= MAX_POST_LINES,
   )
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const threadRootUri = record.reply?.root?.uri || post.uri
   const postHref = useMemo(() => {
     const urip = new AtUri(post.uri)
@@ -308,6 +359,16 @@ const ThreadItemTreePostInner = memo(function ThreadItemTreePostInner({
     setLimitLines(false)
   }, [setLimitLines])
 
+  const toggleCollapse = useCallback(() => {
+    setIsCollapsed(prev => !prev)
+  }, [])
+
+  // Show collapse button if:
+  // 1. Post is nested (indent >= 2)
+  // 2. Post has child replies (showChildReplyLine === true)
+  const shouldShowCollapseButton =
+    item.ui.indent >= 2 && item.ui.showChildReplyLine
+
   return (
     <ThreadItemTreePostOuterWrapper item={item}>
       <SubtleHover>
@@ -321,6 +382,12 @@ const ThreadItemTreePostInner = memo(function ThreadItemTreePostInner({
           profile={post.author}
           interpretFilterAsBlur>
           <ThreadItemTreePostInnerWrapper item={item}>
+            {shouldShowCollapseButton && (
+              <CollapseButton
+                isCollapsed={isCollapsed}
+                onPress={toggleCollapse}
+              />
+            )}
             <View style={[a.flex_1]}>
               <PostMeta
                 author={post.author}
