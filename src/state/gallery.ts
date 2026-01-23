@@ -17,7 +17,8 @@ import {getImageDim} from '#/lib/media/manip'
 import {openCropper} from '#/lib/media/picker'
 import {type PickerImage} from '#/lib/media/picker.shared'
 import {getDataUriSize} from '#/lib/media/util'
-import {isNative} from '#/platform/detection'
+import {isCancelledError} from '#/lib/strings/errors'
+import {IS_NATIVE} from '#/env'
 
 export type ImageTransformation = {
   crop?: ActionCrop['crop']
@@ -54,7 +55,7 @@ export type ComposerImage =
 let _imageCacheDirectory: string
 
 function getImageCacheDirectory(): string | null {
-  if (isNative) {
+  if (IS_NATIVE) {
     return (_imageCacheDirectory ??= joinPath(cacheDirectory!, 'bsky-composer'))
   }
 
@@ -119,7 +120,7 @@ export async function pasteImage(
 }
 
 export async function cropImage(img: ComposerImage): Promise<ComposerImage> {
-  if (!isNative) {
+  if (!IS_NATIVE) {
     return img
   }
 
@@ -143,7 +144,7 @@ export async function cropImage(img: ComposerImage): Promise<ComposerImage> {
       },
     }
   } catch (e) {
-    if (e instanceof Error && e.message.includes('User cancelled')) {
+    if (!isCancelledError(e)) {
       return img
     }
 
@@ -243,7 +244,7 @@ export async function compressImage(img: ComposerImage): Promise<PickerImage> {
 }
 
 async function moveIfNecessary(from: string) {
-  const cacheDir = isNative && getImageCacheDirectory()
+  const cacheDir = IS_NATIVE && getImageCacheDirectory()
 
   if (cacheDir && from.startsWith(cacheDir)) {
     const to = joinPath(cacheDir, nanoid(36))
@@ -259,7 +260,7 @@ async function moveIfNecessary(from: string) {
 
 /** Purge files that were created to accomodate image manipulation */
 export async function purgeTemporaryImageFiles() {
-  const cacheDir = isNative && getImageCacheDirectory()
+  const cacheDir = IS_NATIVE && getImageCacheDirectory()
 
   if (cacheDir) {
     await deleteAsync(cacheDir, {idempotent: true})

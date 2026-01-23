@@ -11,9 +11,9 @@ import {updateActiveVideoViewAsync} from '@haileyok/bluesky-video'
 import {useDedupe} from '#/lib/hooks/useDedupe'
 import {useScrollHandlers} from '#/lib/ScrollContext'
 import {addStyle} from '#/lib/styles'
-import {isIOS} from '#/platform/detection'
 import {useLightbox} from '#/state/lightbox'
 import {useTheme} from '#/alf'
+import {IS_IOS} from '#/env'
 import {FlatList_INTERNAL} from './Views'
 
 export type ListMethods = FlatList_INTERNAL
@@ -39,7 +39,7 @@ export type ListProps<ItemT = any> = Omit<
   sideBorders?: boolean
   progressViewOffset?: number
 }
-export type ListRef = React.MutableRefObject<FlatList_INTERNAL | null>
+export type ListRef = React.RefObject<FlatList_INTERNAL | null>
 
 const SCROLLED_DOWN_LIMIT = 200
 
@@ -61,7 +61,7 @@ let List = React.forwardRef<ListMethods, ListProps>(
     const isScrolledDown = useSharedValue(false)
     const t = useTheme()
     const dedupe = useDedupe(400)
-    const {activeLightbox} = useLightbox()
+    const scrollsToTop = useAllowScrollToTop()
 
     function handleScrolledDownChange(didScrollDown: boolean) {
       onScrolledDownChange?.(didScrollDown)
@@ -94,7 +94,7 @@ let List = React.forwardRef<ListMethods, ListProps>(
           }
         }
 
-        if (isIOS) {
+        if (IS_IOS) {
           runOnJS(dedupe)(updateActiveVideoViewAsync)
         }
       },
@@ -168,7 +168,7 @@ let List = React.forwardRef<ListMethods, ListProps>(
         contentOffset={contentOffset}
         refreshControl={refreshControl}
         onScroll={scrollHandler}
-        scrollsToTop={!activeLightbox}
+        scrollsToTop={scrollsToTop}
         scrollEventThrottle={1}
         style={style}
         // @ts-expect-error FlatList_INTERNAL ref type is wrong -sfn
@@ -181,3 +181,11 @@ List.displayName = 'List'
 
 List = memo(List)
 export {List}
+
+// We only want to use this context value on iOS because the `scrollsToTop` prop is iOS-only
+// removing it saves us a re-render on Android
+const useAllowScrollToTop = IS_IOS ? useAllowScrollToTopIOS : () => undefined
+function useAllowScrollToTopIOS() {
+  const {activeLightbox} = useLightbox()
+  return !activeLightbox
+}
